@@ -1,9 +1,10 @@
 """
 Created on July 02, 2018
-
 @author: Alejandro Molina
 """
+from scipy.stats import multivariate_normal as mn
 from spn.algorithms.MPE import get_mpe_top_down_leaf, add_node_mpe
+
 from spn.structure.leaves.parametric.Inference import continuous_log_likelihood, gamma_log_likelihood, \
     discrete_log_likelihood, categorical_log_likelihood, categorical_dictionary_log_likelihood
 
@@ -19,6 +20,7 @@ from spn.structure.leaves.parametric.Parametric import (
     CategoricalDictionary,
     NegativeBinomial,
     Hypergeometric,
+    MultivariateGaussian
 )
 import numpy as np
 import logging
@@ -41,7 +43,11 @@ def get_parametric_bottom_up_log_ll(ll_func, mode_func):
 
 def get_parametric_top_down_ll(mode_func):
     def param_td_fn(node, input_vals, data=None, lls_per_node=None):
-        get_mpe_top_down_leaf(node, input_vals, data=data, mode=mode_func(node))
+        get_mpe_top_down_leaf(
+            node,
+            input_vals,
+            data=data,
+            mode=mode_func(node))
 
     return param_td_fn
 
@@ -149,3 +155,101 @@ def add_parametric_mpe_support():
         get_parametric_bottom_up_log_ll(categorical_dictionary_log_likelihood, categoricaldict_mode),
         get_parametric_top_down_ll(categoricaldict_mode),
     )
+
+##Compute the conditional distribution for a multivariate Gaussian when some entries are nan i.e. unseen##
+
+    def makeconditional(mean, cov):
+        def conditionalmodemvg(vec):
+            activeset = np.isnan(vec)
+            totalnans = np.sum(activeset)
+
+            if(totalnans == 0):
+                return mn.pdf(vec, mean, cov)
+            if(totalnans == (len(mean))):
+                return mn.pdf(mean, mean, cov)
+            cov1 = cov[activeset, :]
+            cov2 = cov[~activeset, :]
+            cov11, cov12 = cov1[:, activeset], cov1[:, ~activeset]
+            cov21, cov22 = cov2[:, activeset], cov2[:, ~activeset]
+
+            temp = np.matmul(cov12, np.linalg.inv(cov22))
+
+            schur = cov11 - np.matmul(temp, cov21)
+
+            return 1. / (np.sqrt(2 * 3.14 * np.linalg.det(schur)))
+        return conditionalmodemvg
+
+##Infer the conditional mean when some entries are seen##
+
+    def conditionalmean(mean, cov):
+        def infercondnl(dvec):
+            for i in range(0, len(dvec)):
+                activeset = np.isnan(dvec[i])
+
+                totalnans = np.sum(activeset)
+
+                if(totalnans == 0):
+                    continue
+                if(totalnans == (len(mean))):
+                    dvec[i] = mean
+                else:
+                    cov1 = cov[activeset, :]
+                    cov2 = cov[~activeset, :]
+                    cov11, cov12 = cov1[:, activeset], cov1[:, ~activeset]
+                    cov21, cov22 = cov2[:, activeset], cov2[:, ~activeset]
+
+                    mat = np.matmul(cov12, np.linalg.inv(cov22))
+                    arr = dvec[i]
+                    arr[activeset] = mean[activeset] + \
+                        np.matmul(mat, (arr[~activeset] - mean[~activeset]))
+
+            return dvec
+        return infercondnl
+
+    def mvg_bu_ll(node, data, dtype=np.float64):
+        probs = np.ones((data.shape[0], 1))
+        effdat = data[:, node.scope]
+        for i in range(0, len(effdat)):
+
+            lambdacond = makeconditional(
+                np.asarray(
+                    node.mean), np.asarray(
+                    node.sigma))
+            probs[i] = lambdacond(effdat[i])
+
+        return probs
+
+    def mvg_td(
+            node,
+            input_vals,
+            data=None,
+            lls_per_node=None,
+            dtype=np.float64):
+
+        input_vals = input_vals[0]
+
+        if len(input_vals) == 0:
+            return None
+
+
+        temp = data[input_vals, :]
+
+        checksum = np.sum(temp[:, node.scope], axis=-1)
+
+        indices = np.isnan(checksum)
+
+
+        createcondmean = conditionalmean(
+            np.asarray(
+                node.mean), np.asarray(
+                node.sigma))
+
+        temp = data[input_vals[indices], :]
+
+        temp[:, node.scope] = createcondmean(temp[:, node.scope])
+
+        data[input_vals[indices], :] = temp
+
+        return
+
+    add_node_mpe(MultivariateGaussian, mvg_bu_ll, mvg_td)

@@ -25,7 +25,7 @@ class Parametric(Leaf):
 
 class MultivariateGaussian(Parametric):
     """
-    Implements a univariate gaussian distribution with parameters
+    Implements a multivariate gaussian distribution with parameters
     \mu(mean)
     \sigma (covariance)
     """
@@ -79,7 +79,13 @@ class Gaussian(Parametric):
 class Uniform(Parametric):
     property_type = namedtuple("Uniform", "density start end")
 
-    def __init__(self, density=None, start=None, end=None, type=None, scope=None):
+    def __init__(
+            self,
+            density=None,
+            start=None,
+            end=None,
+            type=None,
+            scope=None):
         Parametric.__init__(self, type, scope=scope)
 
         # parameters
@@ -89,16 +95,15 @@ class Uniform(Parametric):
 
     @property
     def parameters(self):
-        return __class__.property_type(density=self.density, start=self.start, end=self.end)
+        return __class__.property_type(
+            density=self.density, start=self.start, end=self.end)
 
 
 class Gamma(Parametric):
     """
     Implements a univariate Gamma distribution with parameter
     \beta(scale)
-
     where \alpha(shape) is known and fixed
-
     """
 
     type = Type.POSITIVE
@@ -120,7 +125,6 @@ class LogNormal(Parametric):
     """
     Implements a univariate Log - Normal distribution with parameter
     \mu(shape, mean)
-
     where the precition \tau(shape) is known and fixed.
     """
 
@@ -193,7 +197,6 @@ class NegativeBinomial(Parametric):
     """
     Implements a univariate NegativeBinomial distribution with  parameter
     p (probability of a success) and number of non-random number of successes occurs.
-
     FIXME: mismatch from wiki to scipy
     """
 
@@ -215,7 +218,6 @@ class Hypergeometric(Parametric):
     """
     Implements a univariate Hypergeometric distribution with  parameter
     of k successes in n trials, without replacement, from a finite population of size N that contains exactly K objects with that feature
-
     FIXME: mismatch in the wiki in the conjugate prior table
     """
 
@@ -242,7 +244,6 @@ class Geometric(Parametric):
     """
     Implements a univariate Geometric distribution with  parameter
     p,  the probability of success on each trial
-
     """
 
     type = Type.COUNT
@@ -262,11 +263,8 @@ class Categorical(Parametric):
     """
     Implements a univariate categorical distribution with $k$ parameters
     {\pi_{k}}
-
     representing the probability of the k-th category
-
     The conjugate prior for these values would be a Dirichlet
-
     p(\{\pi_{k}\}) = Dir(\boldsymbol\alpha)
     """
 
@@ -294,11 +292,8 @@ class CategoricalDictionary(Parametric):
     """
     Implements a univariate categorical distribution with $k$ parameters
     {\pi_{k}}
-
     representing the probability of the k-th category
-
     The conjugate prior for these values would be a Dirichlet
-
     p(\{\pi_{k}\}) = Dir(\boldsymbol\alpha)
     """
 
@@ -308,19 +303,23 @@ class CategoricalDictionary(Parametric):
     def __init__(self, p=None, scope=None):
         Parametric.__init__(self, type(self).type, scope=scope)
         if p is not None:
-            assert np.isclose(sum(p.values()), 1), "Probabilities shall sum to 1"
+            assert np.isclose(
+                sum(p.values()), 1), "Probabilities shall sum to 1"
         self.p = p
 
     @property
     def parameters(self):
-        return __class__.property_type(p=tuple(sorted(self.p.items(), key=lambda t: t[0])))
+        return __class__.property_type(
+            p=tuple(
+                sorted(
+                    self.p.items(),
+                    key=lambda t: t[0])))
 
 
 class Exponential(Parametric):
     """
     Implements a univariate Exponential distribution with  parameter
     \lambda,  the rate of the distribution
-
     """
 
     type = Type.POSITIVE
